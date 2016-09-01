@@ -18,7 +18,6 @@ static ngx_rtmp_pause_pt                next_pause;
 static ngx_rtmp_stream_begin_pt         next_stream_begin;
 static ngx_rtmp_stream_eof_pt           next_stream_eof;
 
-
 static ngx_int_t ngx_rtmp_live_postconfiguration(ngx_conf_t *cf);
 static void * ngx_rtmp_live_create_app_conf(ngx_conf_t *cf);
 static char * ngx_rtmp_live_merge_app_conf(ngx_conf_t *cf,
@@ -380,6 +379,7 @@ ngx_rtmp_live_start(ngx_rtmp_session_t *s)
 
     nstatus = 0;
 
+    // Here add callback avframe
     if (lacf->play_restart) {
         status[nstatus++] = ngx_rtmp_create_status(s, "NetStream.Play.Start",
                                                    "status", "Start live");
@@ -698,23 +698,23 @@ next:
 
 static ngx_int_t
 ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
-                 ngx_chain_t *in)
-{
-    ngx_rtmp_live_ctx_t            *ctx, *pctx;
-    ngx_rtmp_codec_ctx_t           *codec_ctx;
-    ngx_chain_t                    *header, *coheader, *meta,
-                                   *apkt, *aapkt, *acopkt, *rpkt;
-    ngx_rtmp_core_srv_conf_t       *cscf;
-    ngx_rtmp_live_app_conf_t       *lacf;
-    ngx_rtmp_session_t             *ss;
-    ngx_rtmp_header_t               ch, lh, clh;
-    ngx_int_t                       rc, mandatory, dummy_audio;
-    ngx_uint_t                      prio;
-    ngx_uint_t                      peers;
-    ngx_uint_t                      meta_version;
-    ngx_uint_t                      csidx;
-    uint32_t                        delta;
-    ngx_rtmp_live_chunk_stream_t   *cs;
+                 ngx_chain_t *in) {
+    ngx_rtmp_live_ctx_t *ctx, *pctx;
+    ngx_rtmp_codec_ctx_t *codec_ctx;
+    ngx_chain_t * header, *coheader, *meta,
+            *apkt, *aapkt, *acopkt, *rpkt;
+    ngx_rtmp_core_srv_conf_t *cscf;
+    ngx_rtmp_live_app_conf_t *lacf;
+    ngx_rtmp_session_t *ss;
+    ngx_rtmp_header_t ch, lh, clh;
+    ngx_int_t rc, mandatory, dummy_audio;
+    ngx_uint_t prio;
+    ngx_uint_t peers;
+    ngx_uint_t meta_version;
+    ngx_uint_t csidx;
+    uint32_t delta;
+    ngx_int_t first_av = 0;
+    ngx_rtmp_live_chunk_stream_t *cs;
 #ifdef NGX_DEBUG
     const char                     *type_s;
 
@@ -726,7 +726,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         return NGX_ERROR;
     }
 
-    if (!lacf->live || in == NULL  || in->buf == NULL) {
+    if (!lacf->live || in == NULL || in->buf == NULL) {
         return NGX_OK;
     }
 
@@ -742,6 +742,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     }
 
     if (!ctx->stream->active) {
+        first_av = 1;
         ngx_rtmp_live_start(s);
     }
 
@@ -772,7 +773,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     csidx = !(lacf->interleave || h->type == NGX_RTMP_MSG_VIDEO);
 
-    cs  = &ctx->cs[csidx];
+    cs = &ctx->cs[csidx];
 
     ngx_memzero(&ch, sizeof(ch));
 
@@ -789,12 +790,20 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     clh = lh;
     clh.type = (h->type == NGX_RTMP_MSG_AUDIO ? NGX_RTMP_MSG_VIDEO :
-                                                NGX_RTMP_MSG_AUDIO);
+                NGX_RTMP_MSG_AUDIO);
 
     cs->active = 1;
     cs->timestamp = ch.timestamp;
 
     delta = ch.timestamp - lh.timestamp;
+
+    if (first_av) {
+        ngx_rtmp_first_avframe_t v;
+        v.timestamp = s->current_time;
+        ngx_rtmp_first_avframe(s, &v);
+
+    }
+
 /*
     if (delta >> 31) {
         ngx_log_debug2(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,

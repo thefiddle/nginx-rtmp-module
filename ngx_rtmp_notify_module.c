@@ -21,7 +21,7 @@ static ngx_rtmp_play_pt                         next_play;
 static ngx_rtmp_close_stream_pt                 next_close_stream;
 static ngx_rtmp_record_done_pt                  next_record_done;
 static ngx_rtmp_playlist_pt                     next_playlist;
-
+static ngx_rtmp_first_avframe_pt                next_first_avframe;
 
 static char *ngx_rtmp_notify_on_srv_event(ngx_conf_t *cf, ngx_command_t *cmd,
        void *conf);
@@ -59,6 +59,7 @@ enum {
     NGX_RTMP_NOTIFY_RECORD_DONE,
     NGX_RTMP_NOTIFY_UPDATE,
     NGX_RTMP_NOTIFY_PLAYLIST,
+    NGX_RTMP_NOTIFY_FIRST_AVFRAME,
     NGX_RTMP_NOTIFY_APP_MAX
 };
 
@@ -78,6 +79,7 @@ typedef struct {
     ngx_msec_t                                  update_timeout;
     ngx_flag_t                                  update_strict;
     ngx_flag_t                                  relay_redirect;
+    ngx_flag_t                                  first_avframe;
 } ngx_rtmp_notify_app_conf_t;
 
 
@@ -170,6 +172,13 @@ static ngx_command_t  ngx_rtmp_notify_commands[] = {
       NULL },
 
     { ngx_string("on_playlist"),
+      NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_RTMP_APP_CONF|NGX_CONF_TAKE1,
+      ngx_rtmp_notify_on_app_event,
+      NGX_RTMP_APP_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("on_first_avframe"),
       NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_RTMP_APP_CONF|NGX_CONF_TAKE1,
       ngx_rtmp_notify_on_app_event,
       NGX_RTMP_APP_CONF_OFFSET,
@@ -948,6 +957,58 @@ ngx_rtmp_notify_playlist_create(ngx_rtmp_session_t *s, void *arg,
     return ngx_rtmp_notify_create_request(s, pool, NGX_RTMP_NOTIFY_PLAYLIST,
                                           pl);
 }
+
+
+
+
+
+
+static ngx_chain_t *
+ngx_rtmp_notify_first_avframe_create(ngx_rtmp_session_t *s, void *arg,
+                                ngx_pool_t *pool)
+{
+
+
+    ngx_rtmp_notify_ctx_t          *ctx;
+    ngx_chain_t                    *pl;
+    ngx_buf_t                      *b;
+    size_t                         name_len;
+
+    ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_notify_module);
+
+    pl = ngx_alloc_chain_link(pool);
+    if (pl == NULL) {
+        return NULL;
+    }
+
+    name_len  = ngx_strlen(ctx->name);
+
+    b = ngx_create_temp_buf(pool,
+                            sizeof("call=first_avframe") +
+                            sizeof("&name=") + name_len * 3 +
+                            sizeof("&timestamp=") + NGX_INT32_LEN * 3 +
+                            1);
+    if (b == NULL) {
+        return NULL;
+    }
+
+    pl->buf = b;
+    pl->next = NULL;
+
+    b->last = ngx_cpymem(b->last, (u_char*) "call=first_avframe",
+                         sizeof("call=first_avframe") - 1);
+    b->last = ngx_cpymem(b->last, (u_char*) "&name=", sizeof("&name=") - 1);
+    b->last = (u_char*) ngx_escape_uri(b->last, ctx->name, name_len,
+                                       NGX_ESCAPE_ARGS);
+    b->last = ngx_cpymem(b->last, (u_char*) "&timestamp=",
+                         sizeof("&timestamp=") - 1);
+    b->last = ngx_sprintf(b->last, "%D", s->current_time);
+    *b->last++ = '&';
+
+    return ngx_rtmp_notify_create_request(s, pool, NGX_RTMP_NOTIFY_FIRST_AVFRAME,pl);
+}
+
+
 
 
 static ngx_int_t
@@ -1945,6 +2006,30 @@ next:
 }
 
 
+static ngx_int_t
+ngx_rtmp_notify_first_avframe(ngx_rtmp_session_t *s, ngx_rtmp_first_avframe_t *v)
+{
+    ngx_rtmp_netcall_init_t         ci;
+    ngx_rtmp_notify_app_conf_t     *nacf;
+
+    nacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_notify_module);
+    if (nacf == NULL || nacf->url[NGX_RTMP_NOTIFY_FIRST_AVFRAME] == NULL) {
+        return NGX_OK;
+    }
+
+    ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
+                  "notify: first_avframe url='%V'",
+                  &nacf->url[NGX_RTMP_NOTIFY_FIRST_AVFRAME]->url);
+
+    ngx_memzero(&ci, sizeof(ci));
+
+    ci.url    = nacf->url[NGX_RTMP_NOTIFY_FIRST_AVFRAME];
+    ci.create = ngx_rtmp_notify_first_avframe_create;
+    ci.arg    = v;
+
+    return  ngx_rtmp_netcall_create(s, &ci);
+}
+
 
 static char *
 ngx_rtmp_notify_on_srv_event(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -2017,6 +2102,10 @@ ngx_rtmp_notify_on_app_event(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
         case sizeof("on_playlist") - 1:
             n = NGX_RTMP_NOTIFY_PLAYLIST;
+            break;
+
+        case sizeof("on_first_avframe") - 1:
+            n = NGX_RTMP_NOTIFY_FIRST_AVFRAME;
             break;
 
         case sizeof("on_publish") - 1:
@@ -2128,6 +2217,10 @@ ngx_rtmp_notify_postconfiguration(ngx_conf_t *cf)
 
     next_playlist = ngx_rtmp_playlist;
     ngx_rtmp_playlist = ngx_rtmp_notify_playlist;
+
+
+    next_first_avframe = ngx_rtmp_first_avframe;
+    ngx_rtmp_first_avframe = ngx_rtmp_notify_first_avframe;
 
     return NGX_OK;
 }

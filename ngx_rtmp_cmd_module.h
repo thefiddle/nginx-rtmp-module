@@ -66,6 +66,11 @@ typedef struct {
 
 
 typedef struct {
+    double      timestamp;
+} ngx_rtmp_first_avframe_t;
+
+
+typedef struct {
     u_char                          name[NGX_RTMP_MAX_NAME];
     u_char                          args[NGX_RTMP_MAX_ARGS];
     double                          start;
@@ -137,6 +142,7 @@ typedef ngx_int_t (*ngx_rtmp_set_buflen_pt)(ngx_rtmp_session_t *s,
         ngx_rtmp_set_buflen_t *v);
 
 typedef ngx_int_t (*ngx_rtmp_playlist_pt)(ngx_rtmp_session_t *s, ngx_rtmp_playlist_t *v);
+typedef ngx_int_t (*ngx_rtmp_first_avframe_pt)(ngx_rtmp_session_t *s, ngx_rtmp_first_avframe_t *v);
 
 extern ngx_rtmp_connect_pt          ngx_rtmp_connect;
 extern ngx_rtmp_disconnect_pt       ngx_rtmp_disconnect;
@@ -155,5 +161,6 @@ extern ngx_rtmp_set_buflen_pt       ngx_rtmp_set_buflen;
 extern ngx_rtmp_recorded_pt         ngx_rtmp_recorded;
 
 extern ngx_rtmp_playlist_pt         ngx_rtmp_playlist;
+extern ngx_rtmp_first_avframe_pt    ngx_rtmp_first_avframe;
 
 #endif /*_NGX_RTMP_CMD_H_INCLUDED_ */

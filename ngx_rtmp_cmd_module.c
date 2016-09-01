@@ -64,6 +64,7 @@ ngx_rtmp_recorded_pt        ngx_rtmp_recorded;
 ngx_rtmp_set_buflen_pt      ngx_rtmp_set_buflen;
 
 ngx_rtmp_playlist_pt        ngx_rtmp_playlist;
+ngx_rtmp_first_avframe_pt        ngx_rtmp_first_avframe;
 
 static ngx_int_t ngx_rtmp_cmd_postconfiguration(ngx_conf_t *cf);
 
