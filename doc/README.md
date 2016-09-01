@@ -21,6 +21,7 @@
 * Directives
   * Notify
     * [on_playlist](directives.md#on_playlist)
+    * [on_first_avframe](directives.md#on_forst_avframe)
     * [notify_send_redirect](directives.md#notify_send_redirect)
   * Client Caching
   	* [hls_allow_client_cache](directives.md#hls_allow_client_cache)

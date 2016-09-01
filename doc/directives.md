@@ -73,6 +73,7 @@ Table of Contents
     * [on_play](#on_play)
     * [on_playlist](#on_playlist)
     * [on_publish](#on_publish)
+    * [on_first_avframe](#on_first_avframe)
     * [on_done](#on_done)
     * [on_play_done](#on_play_done)
     * [on_publish_done](#on_publish_done)
@@ -1084,6 +1085,13 @@ Context: rtmp, server, application
 The same as on_play above with the only difference that this directive sets
 callback on publish command. Instead of remote pull push is performed in
 this case.
+
+#### on_first_avframe
+Syntax: `on_first_avframe url`  
+Context: rtmp, server, application  
+
+Set on_first_avframe callback. Raised when the first packet incomes after publishing becomes active on the server.
+* timestamp - value of the timestamp of the first frame
 
 #### on_done
 Syntax: `on_done url`  
